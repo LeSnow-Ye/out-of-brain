@@ -2,14 +2,17 @@
 #pragma kernel CSPhase2
 
 int Step; // 0 or 1
-int RenderMode;
-float RenderIntensity;
 
 float Tau;
 float GridWidth;
 float GridHeight;
 float U;
 float V;
+float RhoIn;
+float RhoOut;
+
+int RenderMode;
+float RenderIntensity;
 
 /*
  *
@@ -231,6 +234,7 @@ void CSPhase2 (uint3 id : SV_DispatchThreadID)
     }
 
     /*
+     *  压力边界写不下去了，之后有机会再来写吧
      *
      *  6   2   5
      *    ↖ ↑ ↗

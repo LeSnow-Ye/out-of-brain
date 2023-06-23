@@ -35,6 +35,8 @@ public class LBMSolver : MonoBehaviour
 
     public float V = 1f;
     public float U = 1f;
+    public float RhoIn = 1f;
+    public float RhoOut = 1f;
 
     public bool ShowDebugInfo = false;
     
@@ -268,6 +270,8 @@ public class LBMSolver : MonoBehaviour
         LBMSolverCs.SetFloat("Tau", Tau);
         LBMSolverCs.SetFloat("V", V);
         LBMSolverCs.SetFloat("U", U);
+        LBMSolverCs.SetFloat("RhoIn", RhoIn);
+        LBMSolverCs.SetFloat("RhoOut", RhoOut);
         LBMSolverCs.SetFloat("RenderMode", (int)RenderMode);
         LBMSolverCs.SetFloat("RenderIntensity", RenderIntensity);
         LBMSolverCs.SetInt("Step", _step++ % 2);
