@@ -15,7 +15,7 @@ Shader "Unlit/GridShader"
     }
     SubShader
     {
-        Tags { "Queue" = "Transparent" "IgnoreProjector" = "True" "RenderType"="Transparent" "PreviewType" = "Plane"}
+        Tags { "Queue" = "Background" "IgnoreProjector" = "True" "RenderType"="Transparent" "PreviewType" = "Plane"}
 
         Cull Off
         Blend SrcAlpha OneMinusSrcAlpha
