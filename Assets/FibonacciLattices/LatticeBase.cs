@@ -3,31 +3,35 @@ using UnityEngine;
 
 namespace FibonacciLattices
 {
+    [ExecuteInEditMode]
     public abstract class LatticeBase : MonoBehaviour
     {
         protected const float GoldenRatio = 1.61803398875f;
         protected const float GoldenAngle = 2.39996322972f;
 
+        protected bool _3D = false;
+        
         public int N = 1000;
         public float Phi = 137.5f;
-        public float R = 3;
-        public float PointSize = 0.02f;
+        public float R = 4;
 
         public bool CustomPhi = false;
-        
         public bool LiveUpdate = false;
-        
-        
-        public float RepulsionRadius = 2f;
-        public bool Enable2dRepulsion = false;
-        public float RepulsionIntensity = 0.2f;
-        public float RepulsionDamping = 0.03f;
-        
+
         public GameObject Point;
-    
+
+        [Header("Color and Size")]
+        
+        public bool EnableColorGradient = false;
+        public Gradient ColorGradient;
+        public bool EnableSizeCurve = false;
+        public AnimationCurve SizeCurve;
+        public float BasicSize = 0.1f;
+        public Color BasicColor = Color.white;
+
         public abstract Vector3 GetPosition(int i);
-        public abstract Color GetColor(int i);
-        public abstract float GetSize(int i);
+        public virtual Color GetColor(int i) => EnableColorGradient ? ColorGradient.Evaluate((float)i / (N - 1)) : BasicColor;
+        public virtual float GetSize(int i) => EnableSizeCurve ? SizeCurve.Evaluate((float)i / (N - 1)) : BasicSize;
 
         public void UpdateLattice()
         {
@@ -37,8 +41,6 @@ namespace FibonacciLattices
                 for (int i = 0; i < N - transform.childCount; i++)
                 {
                     var point = Instantiate(Point, Vector3.zero, Quaternion.identity, this.transform);
-                    if (point.GetComponent<Point>() is not null)
-                        point.GetComponent<Point>().Lattice = this;
                 }
             }
             else if (N < transform.childCount)
@@ -50,10 +52,21 @@ namespace FibonacciLattices
             // Update points
             for (int i = 0; i < N; i++)
             {
+                if (i >= transform.childCount)
+                    return;
+                
                 var point = transform.GetChild(i).gameObject;
-                point.GetComponent<SpriteRenderer>().color = GetColor(i);
                 point.transform.localScale = Vector3.one * GetSize(i);
                 point.transform.localPosition = GetPosition(i);
+                switch (_3D)
+                {
+                    case true when Application.isPlaying:
+                        point.GetComponent<MeshRenderer>().material.color = GetColor(i);
+                        break;
+                    case false:
+                        point.GetComponent<SpriteRenderer>().color = GetColor(i);
+                        break;
+                }
             }
         }
 
@@ -63,7 +76,7 @@ namespace FibonacciLattices
                 DestroyImmediate(transform.GetChild(0).gameObject);
         }
 
-        private void Update()
+        void Update()
         {
             if (LiveUpdate)
             {

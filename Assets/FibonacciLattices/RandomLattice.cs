@@ -4,9 +4,15 @@ using Random = UnityEngine.Random;
 
 namespace FibonacciLattices
 {
-    [ExecuteInEditMode]
     public class RandomLattice : LatticeBase
     {
+        [Header("Repulsion")]
+        public float RepulsionRadius = 2f;
+        public bool Enable2dRepulsion = false;
+        public bool RepulsionBorder = false;
+        public float RepulsionIntensity = 0.2f;
+        public float RepulsionDamping = 0.03f;
+        
         public override Vector3 GetPosition(int i)
         {
             Vector2 position;
@@ -20,7 +26,7 @@ namespace FibonacciLattices
 
         public override Color GetColor(int i) => Color.white;
 
-        public override float GetSize(int i) => PointSize;
+        public override float GetSize(int i) => BasicSize;
 
         private void OnDrawGizmos()
         {

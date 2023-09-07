@@ -13,15 +13,5 @@ namespace FibonacciLattices
             var theta = i * phi;
             return new Vector2(r * Mathf.Cos(theta), r * Mathf.Sin(theta));
         }
-
-        public override Color GetColor(int i)
-        {
-            return Color.cyan;
-        }
-
-        public override float GetSize(int i)
-        {
-            return PointSize;
-        }
     }
 }
