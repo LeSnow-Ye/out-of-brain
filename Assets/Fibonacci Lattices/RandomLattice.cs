@@ -26,7 +26,7 @@ namespace FibonacciLattices
 
         public override Color GetColor(int i) => Color.white;
 
-        public override float GetSize(int i) => BasicSize;
+        public override float GetSize(int i) => SizeScale;
 
         private void OnDrawGizmos()
         {

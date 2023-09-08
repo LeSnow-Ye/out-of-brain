@@ -26,12 +26,13 @@ namespace FibonacciLattices
         public Gradient ColorGradient;
         public bool EnableSizeCurve = false;
         public AnimationCurve SizeCurve;
-        public float BasicSize = 0.1f;
+        public float SizeScale = 0.1f;
+        public Vector3 BasicSize = Vector3.one;
         public Color BasicColor = Color.white;
 
         public abstract Vector3 GetPosition(int i);
         public virtual Color GetColor(int i) => EnableColorGradient ? ColorGradient.Evaluate((float)i / (N - 1)) : BasicColor;
-        public virtual float GetSize(int i) => EnableSizeCurve ? SizeCurve.Evaluate((float)i / (N - 1)) : BasicSize;
+        public virtual float GetSize(int i) => EnableSizeCurve ? SizeCurve.Evaluate((float)i / (N - 1)) : SizeScale;
 
         public void UpdateLattice()
         {
@@ -56,7 +57,7 @@ namespace FibonacciLattices
                     return;
                 
                 var point = transform.GetChild(i).gameObject;
-                point.transform.localScale = Vector3.one * GetSize(i);
+                point.transform.localScale = BasicSize * GetSize(i);
                 point.transform.localPosition = GetPosition(i);
                 switch (_3D)
                 {
