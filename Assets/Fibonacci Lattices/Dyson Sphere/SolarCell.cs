@@ -23,8 +23,6 @@ public class SolarCell : MonoBehaviour
         {
             transform.LookAt(Vector3.zero);
         }
-        
-        transform.Rotate(90, 0, 0);
     }
 }
 
