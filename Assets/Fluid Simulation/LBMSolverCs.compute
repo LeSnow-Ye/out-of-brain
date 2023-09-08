@@ -1,0 +1,324 @@
+#pragma kernel CSPhase1
+#pragma kernel CSPhase2
+
+int Step; // 0 or 1
+
+float Tau;
+float GridWidth;
+float GridHeight;
+float U;
+float V;
+float RhoIn;
+float RhoOut;
+
+int RenderMode;
+float RenderIntensity;
+
+/*
+ *
+ *  6   2   5
+ *    ↖ ↑ ↗
+ *  3 ← 0 → 1
+ *    ↙ ↓ ↘ 
+ *  7   4   8
+ * 
+ */
+
+const static float WI[]  = {4.0 / 9, 1.0 / 9, 1.0 / 9, 1.0 / 9, 1.0 / 9, 1.0 / 36, 1.0 / 36, 1.0 / 36, 1.0 / 36};
+const static int DIR_X[] = {0, 1, 0, -1, 0, 1, -1, -1, 1};
+const static int DIR_Y[] = {0, 0, 1, 0, -1, 1, 1, -1, -1};
+
+// Anticlockwise. Important when processing Zou / He Boundary
+const static int3 RIGHT  = {1, 8, 5};
+const static int3 UP     = {2, 5, 6};
+const static int3 LEFT   = {3, 6, 7};
+const static int3 DOWN   = {4, 7, 8};
+
+const static int WALL = 0;
+const static int SAPCE = 1;
+const static int ZH_UP = 2;
+const static int ZH_DOWN = 3;
+const static int ZH_RIGHT = 4;
+const static int ZH_LEFT = 5;
+
+Texture2D<float4> GradientTexture;
+SamplerState linearClampSampler;
+
+RWTexture2D<float4> Result;
+RWStructuredBuffer<float2> Velocity;
+RWStructuredBuffer<int> Mask;
+RWStructuredBuffer<float> Populations;
+RWStructuredBuffer<float> Density;
+RWStructuredBuffer<float> DebugBuffer;
+RWStructuredBuffer<float2> Particles;
+
+int2 Index2Pos(int index)
+{
+    return int2(index % GridWidth, index / GridWidth);
+}
+
+int Pos2Index(int x, int y)
+{
+    return y % GridHeight * GridWidth + x % GridWidth;
+}
+
+int Opposite(int i)
+{
+    switch (i)
+    {
+    case 1:
+        return 3;
+    case 3:
+        return 1;
+    case 2:
+        return 4;
+    case 4:
+        return 2;
+    case 5:
+        return 7;
+    case 7:
+        return 5;
+    case 6:
+        return 8;
+    case 8:
+        return 6;
+    default:
+        return 0;
+    }
+}
+
+int OrientationBetween(int i, int j)
+{
+    if (abs(i - j) != 1)
+        return 8;
+
+    return min(i, j) + 4;
+}
+
+int ZhOpposite(int i)
+{
+    switch (i)
+    {
+    case ZH_UP:
+        return ZH_DOWN;
+    case ZH_DOWN:
+        return ZH_UP;
+    case ZH_RIGHT:
+        return ZH_LEFT;
+    case ZH_LEFT:
+        return ZH_RIGHT;
+    default:
+        return -1;
+    }
+}
+
+/**
+ * \param i Zou/He boundary enum
+ * \return dir num
+ */
+int ZhOrientation(int i)
+{
+    switch (i)
+    {
+    case ZH_UP:
+        return 2;
+    case ZH_DOWN:
+        return 4;
+    case ZH_RIGHT:
+        return 1;
+    case ZH_LEFT:
+        return 3;
+    default:
+        return -1;
+    }
+}
+
+int3 ZhOrientationSet(int i)
+{
+    switch (i)
+    {
+    case ZH_UP:
+        return UP;
+    case ZH_DOWN:
+        return DOWN;
+    case ZH_RIGHT:
+        return RIGHT;
+    case ZH_LEFT:
+        return LEFT;
+    default:
+        return -1;
+    }
+}
+
+bool IsZhBoundary(int i)
+{
+    return i > 1;
+}
+
+float4 Gradient(float x)
+{
+    float4 firstColor = float4(0,1,1,1);
+    float4 middleColor = float4(0,0,0,1);
+    float4 endColor = float4(1,1,0,1);
+    
+    return lerp(lerp(middleColor, firstColor, -x), lerp(middleColor, endColor, x), step(0, x));
+}
+
+float3 Hsb2Rgb(float3 c){
+    float3 rgb = clamp(abs(fmod(c.x * 6.0 + float3(0, 4, 2), 6) - 3.0) - 1.0, 0, 1);
+    rgb = rgb * rgb * (3 - 2 * rgb);
+    return c.z * lerp(float3(1, 1, 1), rgb, c.y);
+}
+
+[numthreads(8,8,1)]
+void CSPhase1 (uint3 id : SV_DispatchThreadID)
+{
+    int index = Pos2Index(id.x, id.y), dst_index;
+    if (Mask[index] == 0) return;
+    
+    int i = 0;
+    float u_c, p, p_eq, p_star;
+    
+    for (i = 0; i < 9; i++)
+    {
+        dst_index = Pos2Index(id.x + DIR_X[i], id.y + DIR_Y[i]);
+
+        // Compute equilibrium distribution
+        u_c = Velocity[index].x * DIR_X[i] + Velocity[index].y * DIR_Y[i];
+        p_eq = WI[i] * Density[index] * (1 + 3.0 * u_c + 4.5 * u_c * u_c - 1.5 * dot(Velocity[index], Velocity[index]));
+        
+        // Streaming and Collision
+        p = Populations[index * 18 + i * 2 + Step];
+        p_star = p - (p - p_eq) / Tau;
+        
+        if (Mask[dst_index] == 0)
+            Populations[index * 18 + Opposite(i) * 2 + (1 - Step)] = p_star; // Mid-grid bounce back
+        else
+            Populations[dst_index * 18 + i * 2 + (1 - Step)] = p_star;
+    }
+}
+
+[numthreads(8,8,1)]
+void CSPhase2 (uint3 id : SV_DispatchThreadID)
+{
+    int index = Pos2Index(id.x, id.y);
+    int i = 0;
+    
+    // Process Zou / He Boundary
+    if (IsZhBoundary(Mask[index]))
+    {
+        int3 ori = ZhOrientationSet(Mask[index]);
+        int3 ori_opp = ZhOrientationSet(ZhOpposite(Mask[index]));
+        
+        float density = 0;
+        for (i = 0; i < 9; i++)
+            density += Populations[index * 18 + i * 2 + (1 - Step)];
+        for (i = 0; i < 3; i++)
+        {
+            density += Populations[index * 18 + ori[i] * 2 + (1 - Step)];
+            density -= Populations[index * 18 + ori_opp[i] * 2 + (1 - Step)];
+        }
+        
+        Populations[index * 18 + ori_opp[0] * 2 + (1 - Step)] = Populations[index * 18 + Opposite(ori_opp[0]) * 2 + (1 - Step)]
+                                                          + 2 * density * U / 3;
+        Populations[index * 18 + ori_opp[1] * 2 + (1 - Step)] = Populations[index * 18 + Opposite(ori_opp[1]) * 2 + (1 - Step)]
+                                                       + 0.5 * (Populations[index * 18 + Opposite(ori_opp[1] - 4) * 2 + (1 - Step)]
+                                                              - Populations[index * 18 + (ori_opp[1] - 4) * 2 + (1 - Step)])
+                                                              + density * U / 6
+                                                              - density * V / 2;
+        Populations[index * 18 + ori_opp[2] * 2 + (1 - Step)] = Populations[index * 18 + Opposite(ori_opp[2]) * 2 + (1 - Step)]
+                                                       - 0.5 * (Populations[index * 18 + Opposite(ori_opp[1] - 4) * 2 + (1 - Step)]
+                                                              - Populations[index * 18 + (ori_opp[1] - 4) * 2 + (1 - Step)])
+                                                              + density * U / 6
+                                                              + density * V / 2;
+    }
+
+    /*
+     *  压力边界写不下去了，之后有机会再来写吧
+     *
+     *  6   2   5
+     *    ↖ ↑ ↗
+     *  3 ← 0 → 1
+     *    ↙ ↓ ↘ 
+     *  7   4   8
+     * 
+     */
+    
+    
+    // Compute macroscopic values
+    if (Mask[index] != 0)
+    {
+        float density = 0;
+        float2 ru = 0;
+        float p;
+        for (i = 0; i < 9; i++)
+        {
+            p = Populations[index * 18 + i * 2 + (1 - Step)];
+            density += p;
+            ru += float2(DIR_X[i], DIR_Y[i]) * p;
+        }
+        
+        Density[index] = density;
+
+        if (id.x == 1 && Mask[index] == 2)
+        {
+            DebugBuffer[3] = Density[index];
+        }
+        
+        Velocity[index] = ru / density;
+    }
+    
+    // Render
+    float4 col = float4(1,1,1,1);
+    
+    switch (RenderMode)
+    {
+    case 1 :
+        Result[id.xy] = col * (pow(abs(Density[index] - 1), RenderIntensity) - 0.2);
+        break;
+    case 2 :
+        float2 center = Velocity[index] * RenderIntensity;
+        float angle = atan2(center.y, center.x);
+        float radius = length(center) * 2.0;
+        col.rgb = Hsb2Rgb(float3(angle/6.28318530718 + 0.5,radius,1.0));
+        Result[id.xy] = col;
+        break;
+    case 3 :
+        float vel = length(Velocity[index]) * RenderIntensity;
+        Result[id.xy] = GradientTexture.SampleLevel(linearClampSampler, float2(vel, 0), 0);
+        break;
+    default:
+        float vol = Velocity[Pos2Index(id.x, id.y + 1)].y - Velocity[index].y - Velocity[Pos2Index(id.x + 1, id.y)].x + Velocity[index].x;
+        Result[id.xy] = Gradient(vol * RenderIntensity * 100);
+        break;
+    }
+}
+
+
+/*
+[numthreads(8,1,1)]
+void CSFluidSimulationParticle (uint id : SV_DispatchThreadID)
+{
+    // new Vector2(x * 16.0f / GridWidth - 8, y * 4.0f / GridHeight - 2);
+    int x = (Particles[id.x].x + 8) * GridWidth / 16.0;
+    int y = (Particles[id.x].y + 2) * GridHeight / 4.0;
+    int index = Pos2Index(x, y);
+    
+    float2 new_pos = Particles[id.x] + Velocity[index];
+    int new_x = (new_pos.x + 8) * GridWidth / 16.0;
+    int new_y = (new_pos.y + 2) * GridHeight / 4.0;
+    int new_index = Pos2Index(new_x, new_y);
+    if (Mask[new_index] == 0)
+    {
+        Particles[id.x] -= Velocity[index];
+    }
+    else
+    {
+        Particles[id.x] += Velocity[index];
+    }
+    
+    Particles[id.x].x = (Particles[id.x].x + 8) % 16 - 8;
+    Particles[id.x].y = (Particles[id.x].y + 2) % 4 - 2;
+}
+
+ */
