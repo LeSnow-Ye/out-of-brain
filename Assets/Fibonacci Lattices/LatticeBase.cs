@@ -34,6 +34,23 @@ namespace FibonacciLattices
         public virtual Color GetColor(int i) => EnableColorGradient ? ColorGradient.Evaluate((float)i / (N - 1)) : BasicColor;
         public virtual float GetSize(int i) => EnableSizeCurve ? SizeCurve.Evaluate((float)i / (N - 1)) : SizeScale;
 
+        public virtual void UpdatePoint(int i)
+        {
+            var point = transform.GetChild(i).gameObject;
+            point.transform.localScale = BasicSize * GetSize(i);
+            point.transform.localPosition = GetPosition(i);
+            switch (_3D)
+            {
+                case true when Application.isPlaying:
+                    point.GetComponent<MeshRenderer>().material.color = GetColor(i);
+                    break;
+                case false:
+                    point.GetComponent<SpriteRenderer>().color = GetColor(i);
+                    break;
+            }
+        }
+        
+        
         public void UpdateLattice()
         {
             // Insure number of points
@@ -55,19 +72,7 @@ namespace FibonacciLattices
             {
                 if (i >= transform.childCount)
                     return;
-                
-                var point = transform.GetChild(i).gameObject;
-                point.transform.localScale = BasicSize * GetSize(i);
-                point.transform.localPosition = GetPosition(i);
-                switch (_3D)
-                {
-                    case true when Application.isPlaying:
-                        point.GetComponent<MeshRenderer>().material.color = GetColor(i);
-                        break;
-                    case false:
-                        point.GetComponent<SpriteRenderer>().color = GetColor(i);
-                        break;
-                }
+                UpdatePoint(i);
             }
         }
 
