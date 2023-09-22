@@ -31,12 +31,13 @@ namespace FibonacciLattices
         public Color BasicColor = Color.white;
 
         public abstract Vector3 GetPosition(int i);
-        public virtual Color GetColor(int i) => EnableColorGradient ? ColorGradient.Evaluate((float)i / (N - 1)) : BasicColor;
-        public virtual float GetSize(int i) => EnableSizeCurve ? SizeCurve.Evaluate((float)i / (N - 1)) : SizeScale;
+        public virtual Color GetColor(int i) => EnableColorGradient ? ColorGradient.Evaluate((float)i / N) : BasicColor;
+        public virtual float GetSize(int i) => EnableSizeCurve ? SizeCurve.Evaluate((float)i / N) : SizeScale;
 
         public virtual void UpdatePoint(int i)
         {
-            var point = transform.GetChild(i).gameObject;
+            var child = transform.GetChild(i);
+            var point = child.gameObject;
             point.transform.localScale = BasicSize * GetSize(i);
             point.transform.localPosition = GetPosition(i);
             switch (_3D)
@@ -82,7 +83,7 @@ namespace FibonacciLattices
                 DestroyImmediate(transform.GetChild(0).gameObject);
         }
 
-        void Update()
+        public virtual void Update()
         {
             if (LiveUpdate)
             {

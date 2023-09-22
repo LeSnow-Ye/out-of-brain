@@ -125,4 +125,4 @@ MonoBehaviour:
   MaxIntensity: -0.5
   LampLightUpDuration: 1
   WallLightUpDuration: 5
-  WallStartLightUpTime: 1
+  WallStartLightUpTime: 0.5
